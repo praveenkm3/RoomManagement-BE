@@ -3,6 +3,12 @@ import { Bookings } from "../config/Entities/Bookings.ts";
 import { Rooms } from "../config/Entities/Rooms.ts";
 import { Users } from "../config/Entities/Users.ts";
 import { AppDataSource } from "../config/db.ts";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 const roomRepository = AppDataSource.getRepository(Rooms);
 const userRepository = AppDataSource.getRepository(Users);
@@ -119,6 +125,7 @@ export async function add_booking(data: any, userId: any) {
       endTime,
       userIds = [],
       roomId,
+      bookedDate,
     } = data;
     //check room available or not
     const action1 = await roomRepository.findOne({
@@ -135,16 +142,15 @@ export async function add_booking(data: any, userId: any) {
     }
     const attendeeCount = userIds.length;
 
-if (attendeeCount > action1.roomCapacity) {
-  return {
-    created: false,
-    message: `Room capacity exceeded. Maximum allowed is ${action1.roomCapacity} attendees.`,
-  };
-}
+    if (attendeeCount > action1.roomCapacity) {
+      return {
+        created: false,
+        message: `Room capacity exceeded. Maximum allowed is ${action1.roomCapacity} attendees.`,
+      };
+    }
     //check Time slot Available or not
     const start = new Date(startTime);
-    const end = new Date(endTime);
-    const date = start.toISOString().split("T")[0];
+    const end = new Date(endTime); 
 
     const existingBooking = await bookRepository
       .createQueryBuilder("book")
@@ -172,12 +178,11 @@ if (attendeeCount > action1.roomCapacity) {
         endTime: endTime,
         bookedRoomId: roomId,
         bookingStatus: BookStatus.Confirmed,
-        bookedDate: date!,
+        bookedDate:bookedDate,
         createdUserId: userId,
         statusChangedByUser: userId,
       })
-      .execute();
-    console.log(query);
+      .execute(); 
     const bookingId = query?.raw?.[0].bookingId;
 
     //inserting attendies
@@ -205,39 +210,39 @@ if (attendeeCount > action1.roomCapacity) {
 }
 export async function see_user_bookings(userId: any) {
   try {
-  const result = await bookRepository
-  .createQueryBuilder("booking")
-  .leftJoinAndSelect("booking.createdUserId", "createdUser")
-  .leftJoinAndSelect("booking.bookedRoomId", "room")
-  .leftJoinAndSelect("booking.attendees", "attendee")
-  .leftJoinAndSelect("attendee.attendeeUserId", "attendeeUser")
-  .select([
-    "booking",
-    
-    "createdUser.userId",
-    "createdUser.userName",
-    "createdUser.email",
-    "createdUser.role",
+    const result = await bookRepository
+      .createQueryBuilder("booking")
+      .leftJoinAndSelect("booking.createdUserId", "createdUser")
+      .leftJoinAndSelect("booking.bookedRoomId", "room")
+      .leftJoinAndSelect("booking.attendees", "attendee")
+      .leftJoinAndSelect("attendee.attendeeUserId", "attendeeUser")
+      .select([
+        "booking",
 
-    "room.roomId",
-    "room.roomName",
-    "room.roomCapacity",
-    "room.roomLocation",
-    "room.roomStatus",
+        "createdUser.userId",
+        "createdUser.userName",
+        "createdUser.email",
+        "createdUser.role",
 
-    "attendee.attendeeId",
-    "attendee.attendeeStatus",
+        "room.roomId",
+        "room.roomName",
+        "room.roomCapacity",
+        "room.roomLocation",
+        "room.roomStatus",
 
-    "attendeeUser.userId",
-    "attendeeUser.userName",
-    "attendeeUser.email",
-    "attendeeUser.role"
-  ])
-  .where("createdUser.userId = :userId", { userId })
-  .getMany();
-  return result;
+        "attendee.attendeeId",
+        "attendee.attendeeStatus",
+
+        "attendeeUser.userId",
+        "attendeeUser.userName",
+        "attendeeUser.email",
+        "attendeeUser.role",
+      ])
+      .where("createdUser.userId = :userId", { userId })
+      .getMany();
+    return result;
   } catch (error) {
-    return {message:"Error At Fetching User's Booking Details"}
+    return { message: "Error At Fetching User's Booking Details" };
   }
 }
 export async function get_added_meetings(userId: any) {
@@ -333,6 +338,7 @@ export async function update_booking(
       userIds = [],
       roomId,
       status,
+      bookedDate,
     } = data;
 
     // Check booking exists
@@ -423,6 +429,7 @@ export async function update_booking(
         bookedRoomId: roomId,
         statusChangedByUser: userId,
         bookingStatus: status,
+        bookedDate: bookedDate,
       },
     );
 
@@ -440,7 +447,7 @@ export async function update_booking(
       (attendee) => attendee.attendeeUserId.userId,
     );
     //delete old users
-    const deleteAttendees=await attendeeRepository
+    const deleteAttendees = await attendeeRepository
       .createQueryBuilder()
       .delete()
       .where("bookingId = :id", { id: bookingId })
@@ -486,21 +493,79 @@ export async function get_booking_dates(user: any) {
     const role = user.role;
     let result;
 
-    if (role === "Admin") { 
+    if (role === "Admin") {
       result = await bookRepository.find();
-    } else { 
+    } else {
       result = await bookRepository.find({
         where: {
           createdUserId: {
-            userId: user?.userId
-          }
-        }
+            userId: user?.userId,
+          },
+        },
       });
     }
-  
-    return result;
 
+    return result;
   } catch (error) {
     return { message: "Error at fetching Booking Dates" };
+  }
+}
+export async function update_attendance(userId: string, bookingId: string) {
+  try {
+    const booking = await bookRepository.findOne({
+      where: {
+        bookingId: bookingId,
+        bookingStatus:BookStatus.Confirmed,
+        attendees: {
+          attendeeUserId: {
+            userId: userId,
+          },
+        },
+      },
+    });
+    if (!booking) {
+      throw new Error("BookingNot Existed");
+    }
+    const now = dayjs().tz("Asia/Kolkata");
+    const bookingDate = dayjs(booking.bookedDate)
+      .tz("Asia/Kolkata")
+      .format("YYYY-MM-DD");
+    const currentDate = now.format("YYYY-MM-DD");
+
+    // check date
+    if (bookingDate !== currentDate) {
+      throw new Error("Attendance only allowed on booking date");
+    }
+
+    const startTime = dayjs(booking.startTime).tz("Asia/Kolkata");
+
+    const endTime = dayjs(booking.endTime).tz("Asia/Kolkata");
+
+    // check time
+    if (now.isBefore(startTime)) {
+      throw new Error("Meeting has not started yet");
+    }
+    if (now.isAfter(endTime)) {
+      throw new Error("Meeting already ended");
+    }
+    const attendee = await attendeeRepository.findOne({
+      where: {
+        attendeeUserId: {
+          userId: userId,
+        },
+        bookingId:bookingId
+      },
+    });
+    if (attendee) {
+      attendee.attendeeStatus = "Attended";
+      await attendeeRepository.save(attendee);
+      return {message:"Attendance Marked Succesfully"};
+    }else{
+      throw new Error("Attendee Not Found");
+    }
+  } catch (error: any) {
+    return {
+      message: error.message,
+    };
   }
 }

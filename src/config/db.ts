@@ -23,7 +23,7 @@ export const AppDataSource = new DataSource({
     password: DB_PASSWORD as string,
     database: DB_NAME as string,
     synchronize: false,
-    logging: true,
+    logging: false,
     entities: [Users,Rooms,Bookings,Attendies],
     migrations: ["src/migrations/**/*.ts"],
 })

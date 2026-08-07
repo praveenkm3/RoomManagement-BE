@@ -8,7 +8,8 @@ import {
   cancelBooking,
   getOneBooking,
   updateBooking,
-  getBookingDates
+  getBookingDates,
+  updateAttendance
 } from "../controllers/book_controllers.ts";
 
 import { Router } from "express";
@@ -23,5 +24,6 @@ router.patch("/cancel-booking", cancelBooking);
 router.post("/get-specific-booking", getOneBooking);
 router.post("/update-booking", updateBooking);
 router.get("/get-booking-dates", getBookingDates);
+router.patch("/update-attendance", updateAttendance);
 
 export default router;
