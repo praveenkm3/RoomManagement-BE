@@ -4,9 +4,11 @@ import {
   PrimaryGeneratedColumn,
   JoinColumn,
   ManyToOne,
+  OneToMany,
 } from "typeorm";
 import { Users } from "./Users.ts";
 import { Rooms } from "./Rooms.ts";
+import { Attendies } from "./Attendies.ts";
 
 enum BookStatus{
     Confirmed="Confirmed",
@@ -58,4 +60,10 @@ export class Bookings {
   )
   @JoinColumn({ name: "statusChangedByUser" })
   statusChangedByUser!:Users
+//bi-directional relation
+  @OneToMany(
+  () => Attendies,
+  (attendee) => attendee.bookingId
+)
+attendees!: Attendies[];
 }

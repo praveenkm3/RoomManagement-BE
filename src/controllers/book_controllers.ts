@@ -7,7 +7,8 @@ import {
   get_added_meetings,
   cancel_booking,
   get_specific_booking,
-  update_booking
+  update_booking,
+  get_booking_dates
 } from "../utils/db_operations.ts";
 
 export async function getEmployees(req: any, res: any) {
@@ -126,6 +127,15 @@ export async function updateBooking(req: any, res: any) {
     }
     const created = await update_booking(bookingId,data.data, userId);
     return res.status(201).json(created);
+  } catch (error) {
+    return res.status(400).json("Error At Update Booking");
+  }
+}
+export async function getBookingDates(req: any, res: any) {
+  try {
+    const user=req.user;
+    const result= await get_booking_dates(user);
+    return res.status(200).json(result);
   } catch (error) {
     return res.status(400).json("Error At Update Booking");
   }

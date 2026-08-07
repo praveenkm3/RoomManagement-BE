@@ -133,6 +133,14 @@ export async function add_booking(data: any, userId: any) {
         message: "Room Not Available",
       };
     }
+    const attendeeCount = userIds.length;
+
+if (attendeeCount > action1.roomCapacity) {
+  return {
+    created: false,
+    message: `Room capacity exceeded. Maximum allowed is ${action1.roomCapacity} attendees.`,
+  };
+}
     //check Time slot Available or not
     const start = new Date(startTime);
     const end = new Date(endTime);
@@ -197,20 +205,39 @@ export async function add_booking(data: any, userId: any) {
 }
 export async function see_user_bookings(userId: any) {
   try {
-    const query = await bookRepository.find({
-      where: {
-        createdUserId: {
-          userId: userId,
-        },
-      },
-      relations: {
-        bookedRoomId: true,
-        createdUserId: true,
-      },
-    });
-    return query;
+  const result = await bookRepository
+  .createQueryBuilder("booking")
+  .leftJoinAndSelect("booking.createdUserId", "createdUser")
+  .leftJoinAndSelect("booking.bookedRoomId", "room")
+  .leftJoinAndSelect("booking.attendees", "attendee")
+  .leftJoinAndSelect("attendee.attendeeUserId", "attendeeUser")
+  .select([
+    "booking",
+    
+    "createdUser.userId",
+    "createdUser.userName",
+    "createdUser.email",
+    "createdUser.role",
+
+    "room.roomId",
+    "room.roomName",
+    "room.roomCapacity",
+    "room.roomLocation",
+    "room.roomStatus",
+
+    "attendee.attendeeId",
+    "attendee.attendeeStatus",
+
+    "attendeeUser.userId",
+    "attendeeUser.userName",
+    "attendeeUser.email",
+    "attendeeUser.role"
+  ])
+  .where("createdUser.userId = :userId", { userId })
+  .getMany();
+  return result;
   } catch (error) {
-    return { message: "Error at Fetching User's Bookings" };
+    return {message:"Error At Fetching User's Booking Details"}
   }
 }
 export async function get_added_meetings(userId: any) {
@@ -452,5 +479,28 @@ export async function see_all_bookings() {
     return result;
   } catch (error) {
     return { message: "Error At Sell All Bookings" };
+  }
+}
+export async function get_booking_dates(user: any) {
+  try {
+    const role = user.role;
+    let result;
+
+    if (role === "Admin") { 
+      result = await bookRepository.find();
+    } else { 
+      result = await bookRepository.find({
+        where: {
+          createdUserId: {
+            userId: user?.userId
+          }
+        }
+      });
+    }
+  
+    return result;
+
+  } catch (error) {
+    return { message: "Error at fetching Booking Dates" };
   }
 }
