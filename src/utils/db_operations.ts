@@ -6,7 +6,7 @@ import { AppDataSource } from "../config/db.ts";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
-
+import { Brackets, ILike } from "typeorm";
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
@@ -42,13 +42,34 @@ export async function add_room(data: any, userId: any) {
     return false;
   }
 }
-export async function get_allRooms() {
+export async function get_allRooms(search = "") {
   try {
-    const query = await roomRepository.find({
-      relations: {
-        roomAddedByUser: true,
-      },
-    });
+    let query;
+    if (!search) {
+      query = await roomRepository.find({
+        relations: {
+          roomAddedByUser: true,
+        },
+      });
+    } else {
+      query = await roomRepository.find({
+        relations: {
+          roomAddedByUser: true,
+        },
+        where: [
+          {
+            roomName: ILike(`%${search}%`),
+          },
+          {
+            roomLocation: ILike(`%${search}%`),
+          },
+          {
+            roomStatus: ILike(`%${search}%`),
+          },
+        ],
+      });
+    }
+
     return query;
   } catch (error) {
     return "Error At Fetching Rooms";
@@ -150,7 +171,7 @@ export async function add_booking(data: any, userId: any) {
     }
     //check Time slot Available or not
     const start = new Date(startTime);
-    const end = new Date(endTime); 
+    const end = new Date(endTime);
 
     const existingBooking = await bookRepository
       .createQueryBuilder("book")
@@ -178,11 +199,11 @@ export async function add_booking(data: any, userId: any) {
         endTime: endTime,
         bookedRoomId: roomId,
         bookingStatus: BookStatus.Confirmed,
-        bookedDate:bookedDate,
+        bookedDate: bookedDate,
         createdUserId: userId,
         statusChangedByUser: userId,
       })
-      .execute(); 
+      .execute();
     const bookingId = query?.raw?.[0].bookingId;
 
     //inserting attendies
@@ -208,9 +229,9 @@ export async function add_booking(data: any, userId: any) {
     return "Error At Booking Creation";
   }
 }
-export async function see_user_bookings(userId: any) {
+export async function see_user_bookings(userId: any, search: string) {
   try {
-    const result = await bookRepository
+    const query = await bookRepository
       .createQueryBuilder("booking")
       .leftJoinAndSelect("booking.createdUserId", "createdUser")
       .leftJoinAndSelect("booking.bookedRoomId", "room")
@@ -237,15 +258,34 @@ export async function see_user_bookings(userId: any) {
         "attendeeUser.userName",
         "attendeeUser.email",
         "attendeeUser.role",
-      ])
-      .where("createdUser.userId = :userId", { userId })
-      .getMany();
+      ]);
+    query.where("createdUser.userId = :userId", { userId });
+    if (search?.trim()) {
+      const searchTerm = `%${search.trim()}%`;
+
+      query.andWhere(
+        new Brackets((qb) => {
+          qb.where("room.roomName ILIKE :search", {
+            search: searchTerm,
+          })
+            .orWhere("room.roomLocation ILIKE :search", {
+              search: searchTerm,
+            })
+            .orWhere("booking.bookingTitle ILIKE :search", {
+              search: searchTerm,
+            });
+        }),
+      );
+    }
+
+    const result = await query.getMany();
+
     return result;
   } catch (error) {
     return { message: "Error At Fetching User's Booking Details" };
   }
 }
-export async function get_added_meetings(userId: any) {
+export async function get_added_meetings(userId: any, search: any) {
   try {
     const query = await attendeeRepository
       .createQueryBuilder("attendee")
@@ -253,11 +293,27 @@ export async function get_added_meetings(userId: any) {
       .innerJoinAndSelect("booking.bookedRoomId", "room")
       .innerJoinAndSelect("booking.createdUserId", "creator")
       .innerJoinAndSelect("attendee.attendeeUserId", "attendeeUser")
-      // .where("creator.userId != :userId", { userId })
-      .where('attendee."attendeeUserId" = :userId', { userId })
-      .getMany();
+      .where('attendee."attendeeUserId" = :userId', { userId });
+    if (search?.trim()) {
+      const searchTerm = `%${search.trim()}%`;
 
-    return query;
+      query.andWhere(
+        new Brackets((qb) => {
+          qb.where("room.roomName ILIKE :search", {
+            search: searchTerm,
+          })
+            .orWhere("room.roomLocation ILIKE :search", {
+              search: searchTerm,
+            })
+            .orWhere("booking.bookingTitle ILIKE :search", {
+              search: searchTerm,
+            });
+        }),
+      );
+    }
+
+    let result = await query.getMany();
+    return result;
   } catch (error) {
     return { message: "Error At Fetching Meetings" };
   }
@@ -476,13 +532,53 @@ export async function update_booking(
     };
   }
 }
-export async function see_all_bookings() {
+export async function see_all_bookings(search: string) {
   try {
-    const result = await bookRepository.find({
-      relations: {
-        createdUserId: true,
-      },
-    });
+    const query = bookRepository
+      .createQueryBuilder("booking")
+      .leftJoinAndSelect("booking.createdUserId", "createdUser")
+      .leftJoinAndSelect("booking.bookedRoomId", "room")
+      .select([
+        "booking.bookingId",
+        "booking.bookingTitle",
+        "booking.bookingDescription",
+        "booking.bookingStatus",
+        "booking.bookedDate",
+        "booking.startTime",
+        "booking.endTime",
+
+        "createdUser.userId",
+        "createdUser.userName",
+        "createdUser.email",
+        "createdUser.role",
+
+        "room.roomId",
+        "room.roomName",
+        "room.roomCapacity",
+        "room.roomLocation",
+        "room.roomStatus",
+      ]);
+
+    if (search?.trim()) {
+      const searchTerm = `%${search.trim()}%`;
+
+      query.andWhere(
+        new Brackets((qb) => {
+          qb.where("room.roomName ILIKE :search", {
+            search: searchTerm,
+          })
+            .orWhere("room.roomLocation ILIKE :search", {
+              search: searchTerm,
+            })
+            .orWhere("booking.bookingTitle ILIKE :search", {
+              search: searchTerm,
+            });
+        }),
+      );
+    }
+
+    const result = await query.getMany();
+
     return result;
   } catch (error) {
     return { message: "Error At Sell All Bookings" };
@@ -510,12 +606,16 @@ export async function get_booking_dates(user: any) {
     return { message: "Error at fetching Booking Dates" };
   }
 }
-export async function update_attendance(userId: string, bookingId: string) {
+export async function update_attendance(
+  userId: string,
+  bookingId: string,
+  markStatus: string,
+) {
   try {
     const booking = await bookRepository.findOne({
       where: {
         bookingId: bookingId,
-        bookingStatus:BookStatus.Confirmed,
+        bookingStatus: BookStatus.Confirmed,
         attendees: {
           attendeeUserId: {
             userId: userId,
@@ -553,19 +653,95 @@ export async function update_attendance(userId: string, bookingId: string) {
         attendeeUserId: {
           userId: userId,
         },
-        bookingId:bookingId
+        bookingId: bookingId,
       },
     });
     if (attendee) {
-      attendee.attendeeStatus = "Attended";
+      attendee.attendeeStatus = markStatus;
       await attendeeRepository.save(attendee);
-      return {message:"Attendance Marked Succesfully"};
-    }else{
+      return { message: "Attendance Marked Succesfully" };
+    } else {
       throw new Error("Attendee Not Found");
     }
   } catch (error: any) {
     return {
       message: error.message,
+    };
+  }
+}
+export async function get_user_booking_room_counts() {
+  try {
+    const query1 = (await bookRepository.find()).length;
+    const query2 = (await roomRepository.find()).length;
+    const query3 = (await userRepository.find()).length;
+    return {
+      totalBookings: query1,
+      totalRooms: query2,
+      totalUsers: query3,
+    };
+  } catch (error) {
+    return {
+      message: "Error Fetching Counts",
+    };
+  }
+}
+export async function room_usage_count(startDate: any, endDate: any) {
+  try {
+    const query = await bookRepository
+      .createQueryBuilder("booking")
+      .innerJoin("booking.bookedRoomId", "room")
+      .select("room.roomId", "roomId")
+      .addSelect("room.roomName", "roomName")
+      .addSelect("COUNT(booking.bookingId)", "bookingCount");
+    if (startDate && endDate) {
+      query.where("booking.bookedDate BETWEEN :startDate AND :endDate", {
+        startDate,
+        endDate,
+      });
+    }
+    query.groupBy("room.roomId");
+    query.addGroupBy("room.roomName");
+    query.orderBy("bookingCount", "DESC");
+    let room_usage = await query.getRawMany();
+    return room_usage;
+  } catch (error) {
+    return { message: "Error Fetching Counts" };
+  }
+}
+export async function get_user_board1(userId: string) {
+  try {
+    const query1 = await bookRepository.find({
+      where: {
+        createdUserId: {
+          userId: userId,
+        },
+      },
+    });
+    const query2 = await bookRepository
+      .createQueryBuilder("book")
+      .select("book.bookingStatus", "bookingStatus")
+      .addSelect("COUNT(*)", "count")
+      .where("book.createdUserId = :userId", { userId })
+      .groupBy("book.bookingStatus")
+      .getRawMany();
+
+    const query3 = await bookRepository
+      .createQueryBuilder("book")
+      .select("book.bookingStatus", "bookingStatus")
+      .addSelect("COUNT(*)", "count")
+      .where("book.createdUserId = :userId", { userId })
+      .andWhere("book.bookingStatus = :status", { status: "Confirmed" })
+      .andWhere("book.bookedDate > :today", { today: new Date() })
+      .groupBy("book.bookingStatus")
+      .getRawMany();
+    return {
+      myBookings: query1.length,
+      bookingStatus: query2,
+      upcoming: query3,
+    };
+  } catch (error) {
+    return {
+      message: "Error Fetching User Details",
     };
   }
 }

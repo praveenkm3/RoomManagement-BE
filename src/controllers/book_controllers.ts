@@ -9,7 +9,8 @@ import {
   get_specific_booking,
   update_booking,
   get_booking_dates,
-  update_attendance
+  update_attendance,
+  get_user_board1,
 } from "../utils/db_operations.ts";
 
 export async function getEmployees(req: any, res: any) {
@@ -54,65 +55,67 @@ export async function availBookings(req: any, res: any) {
     return res.status(400).json("Error At Fetching Booking Details");
   }
 }
-export  async function getAllRooms(req:any,res:any){
-    try {
-        const result=await get_allRooms();
+export async function getAllRooms(req: any, res: any) {
+  try {
+    const { search } = req.params;
+    const result = await get_allRooms(search);
 
-        return res.status(200).json(result);
-   
-        
-    } catch (error) {  
-        return res.status(400).json("Error At Fetching Rooms")
-    }
-
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(400).json("Error At Fetching Rooms");
+  }
 }
 export async function seeUserBookings(req: any, res: any) {
   try {
-    const userId= req.user.userId
-    if(!userId){
-        return res.status(400).json({message:"UserID required"});
+    const userId = req.user.userId;
+    const { search = "" } = req.params;
+    if (!userId) {
+      return res.status(400).json({ message: "UserID required" });
     }
-    const result=await see_user_bookings(userId)
+    const result = await see_user_bookings(userId, search);
     return res.status(200).json(result);
   } catch (error) {
     return res.status(400).json("Error At Fetching User's Booking Details");
   }
 }
-export async function getAddedMeetings(req: any, res: any){
-try {
-    const userId=req.user.userId;
-    const result=await get_added_meetings(userId);
+export async function getAddedMeetings(req: any, res: any) {
+  try {
+    const userId = req.user.userId;
+    const { search } = req.params;
+    const result = await get_added_meetings(userId, search);
     return res.status(200).json(result);
-} catch (error) {
+  } catch (error) {
     return res.status(400).json("Error At Fetching Participated Bookings");
+  }
 }
-}
-export async function cancelBooking(req: any, res: any){
-try {
-    const userId=req.user.userId;
-    const {bookingId}=req.body
-    const result=await cancel_booking(userId, bookingId);
+export async function cancelBooking(req: any, res: any) {
+  try {
+    const userId = req.user.userId;
+    const { bookingId } = req.body;
+    const result = await cancel_booking(userId, bookingId);
     return res.status(200).json(result);
-} catch (error) {
+  } catch (error) {
     return res.status(400).json("Error At Canceling");
+  }
 }
-}
-export async function getOneBooking(req: any, res: any){
-try {
-    const userId=req.user.userId;
-    const {bookingId}=req.body
-    const result=await get_specific_booking( bookingId);
+export async function getOneBooking(req: any, res: any) {
+  try {
+    const userId = req.user.userId;
+    const { bookingId } = req.body;
+    const result = await get_specific_booking(bookingId);
     return res.status(200).json(result);
-} catch (error) {
+  } catch (error) {
     return res.status(400).json("Error At Canceling");
-}
+  }
 }
 export async function updateBooking(req: any, res: any) {
   try {
     const data = req.body;
-    const {data:{bookingId}}=data
-    if(!bookingId){
-        return res.status(200).json({message:"BookingID required"})
+    const {
+      data: { bookingId },
+    } = data;
+    if (!bookingId) {
+      return res.status(200).json({ message: "BookingID required" });
     }
     const userId = req.user.userId;
     const {
@@ -126,7 +129,7 @@ export async function updateBooking(req: any, res: any) {
     if (!title || !startTime || !endTime || !roomId) {
       return res.status(200).json("Insufficient Data");
     }
-    const created = await update_booking(bookingId,data.data, userId);
+    const created = await update_booking(bookingId, data.data, userId);
     return res.status(201).json(created);
   } catch (error) {
     return res.status(400).json("Error At Update Booking");
@@ -134,20 +137,30 @@ export async function updateBooking(req: any, res: any) {
 }
 export async function getBookingDates(req: any, res: any) {
   try {
-    const user=req.user;
-    const result= await get_booking_dates(user);
+    const user = req.user;
+    const result = await get_booking_dates(user);
     return res.status(200).json(result);
   } catch (error) {
     return res.status(400).json("Error At Update Booking");
   }
 }
-export async function updateAttendance(req: any, res: any){
-try {
-  const userId=req.user.userId
-  const {bookingId}=req.body
-  const result=await update_attendance(userId,bookingId);
-  return res.status(200).json(result);
-} catch (error) {
-  return res.status(400).json({message:"Error at updating attendance"});
+export async function updateAttendance(req: any, res: any) {
+  try {
+    const userId = req.user.userId;
+    const { bookingId, markStatus } = req.body;
+    const result = await update_attendance(userId, bookingId, markStatus);
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(400).json({ message: "Error at updating attendance" });
+  }
 }
+export async function getUserBoard1(req: any, res: any) {
+  try {
+    const userId = req.user.userId; 
+    const result = await get_user_board1(userId);
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(400).json({ message: "Error at getting user details" });
+  }
 }
+;
